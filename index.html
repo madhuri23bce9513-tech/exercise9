@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>ES6 Weather Graph</title>
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 20px; }
+    #container { max-width: 900px; margin: auto; }
+    #log { margin-top: 10px; color: #555; white-space: pre-line; }
+  </style>
+</head>
+<body>
+<div id="container">
+  <h2>Weather Graph (OpenWeatherMap + ES6)</h2>
+
+  <label>
+    City:
+    <input id="cityInput" type="text" value="London">
+  </label>
+  <button id="loadBtn">Load Weather</button>
+
+  <canvas id="weatherChart" height="120"></canvas>
+
+  <h3>Console (ES6 features demo)</h3>
+  <div id="log"></div>
+</div>
+
+<script>
+  const apiKey = ""; // <-- put your key here
+
+  // ----- Small helper: log messages on page -----
+  const log = (msg) => {           // arrow function
+    const div = document.getElementById("log");
+    div.textContent += msg + "\n";
+  };
+
+  // ----- Example of callback usage -----
+  function withWeatherCity(callback) {   // callback style
+    const city = document.getElementById("cityInput").value.trim();
+    if (!city) {
+      alert("Enter a city");
+      return;
+    }
+    callback(city);
+  }
+
+  // ----- Promise-based fetch (ES6 promises + arrow) -----
+  const fetchForecastPromise = (city) => {
+    const url =
+      `https://api.openweathermap.org/data/2.5/forecast?q=${encodeURIComponent(city)}&units=metric&appid=${apiKey}`;
+    return fetch(url)                        // returns a Promise
+      .then(res => {
+        if (!res.ok) {
+          throw new Error("HTTP error: " + res.status);
+        }
+        return res.json();
+      });
+  };
+
+  // ----- Async / await wrapper for cleaner code -----
+  const fetchForecastAsync = async (city) => {
+    try {
+      const data = await fetchForecastPromise(city);   // await Promise
+      return data;
+    } catch (err) {
+      log("Error fetching forecast: " + err.message);
+      throw err;
+    }
+  };
+
+  // ----- Prepare data for Chart.js using arrow + map -----
+  const buildChartData = (forecastList) => {
+    // Take every 2nd entry to reduce points
+    const sliced = forecastList.filter((_, index) => index % 2 === 0);
+
+    const labels = sliced.map(item => item.dt_txt);               // time labels
+    const temps  = sliced.map(item => item.main.temp);            // temperatures
+
+    return { labels, temps };
+  };
+
+  // ----- Chart.js setup -----
+  let chartInstance = null;
+
+  const renderChart = (labels, temps, city) => {
+    const ctx = document.getElementById("weatherChart").getContext("2d");
+
+    if (chartInstance) {
+      chartInstance.destroy();
+    }
+
+    chartInstance = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels,
+        datasets: [{
+          label: `Temperature in ${city} (°C)`,
+          data: temps,
+          borderColor: "rgb(54, 162, 235)",
+          backgroundColor: "rgba(54, 162, 235, 0.3)",
+          tension: 0.3,
+          fill: true
+        }]
+      },
+      options: {
+        responsive: true,
+        scales: {
+          x: {
+            title: { display: true, text: "Date/Time" }
+          },
+          y: {
+            title: { display: true, text: "Temperature (°C)" }
+          }
+        }
+      }
+    });
+  };
+
+  // ----- Main flow: uses callbacks + promises + async/await -----
+  document.getElementById("loadBtn").addEventListener("click", async () => {
+    log("Button clicked");
+
+    // callback example: get city and then do rest
+    withWeatherCity(async (city) => {
+      log("Selected city (callback): " + city);
+
+      try {
+        log("Fetching forecast with async/await...");
+        const data = await fetchForecastAsync(city);        // async/await
+        log("Received " + data.list.length + " forecast records");
+
+        const { labels, temps } = buildChartData(data.list);  // arrow + map/filter
+        log("Prepared " + labels.length + " chart points");
+
+        renderChart(labels, temps, city);
+        log("Chart rendered");
+      } catch (err) {
+        log("Failed to load weather: " + err.message);
+      }
+    });
+  });
+</script>
+</body>
+</html>
